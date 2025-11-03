@@ -95,6 +95,35 @@
         target: 'any_other'
     };
 
+    let sbConfigsCompleted = [];
+    function loadSandboxConfigs() {
+        try { sbConfigsCompleted = JSON.parse(localStorage.getItem('hanoi_sandbox_configs')) || []; } catch(e) { sbConfigsCompleted = []; }
+    }
+    function saveSandboxConfig(cfg) {
+        const hash = `${cfg.poleCount}p_${cfg.diskCount}d_${cfg.rule}_${cfg.startPos}_${cfg.target}`;
+        if (!sbConfigsCompleted.includes(hash)) {
+            sbConfigsCompleted.push(hash);
+            if (sbConfigsCompleted.length > 50) sbConfigsCompleted.shift();
+            try { localStorage.setItem('hanoi_sandbox_configs', JSON.stringify(sbConfigsCompleted)); } catch(e) {}
+            if (sbConfigsCompleted.length >= 10) { checkAchievements('sandbox_10_configs'); }
+        }
+    }
+    function calculateCreativityScore() {
+        const poles = document.querySelectorAll('.pole').length;
+        let score = 0;
+        score += n * 10;
+        score += (poles - 3) * 25;
+        if (sbOpt.rule === 'adjacent') score += 50;
+        if (sbOpt.rule === 'cyclic') score += 60;
+        if (sbOpt.startPos === 'spread') score += 40;
+        if (sbOpt.startPos === 'last_pole') score += 30;
+        if (sbOpt.target === 'last_pole') score += 20;
+        if (undoCount === 0) score += 50;
+        if (t0 && (Date.now() - t0) < 180000) score += 80;
+        if (moves < 500) score += Math.floor((500 - moves) / 5);
+        return Math.min(999, score);
+    }
+
     const EMOJIS = {
         burger: ['🍔', '🍅', '🥬', '🧀', '🥩', '🍞', '🍞', '🍞'],
         rescue: ['🐱', '🐈', '😿', '😻', '🙀', '😽', '🦊', '🐻'],
@@ -123,6 +152,19 @@
         { id: 'fs_initiate', title: 'Phòng Thí Nghiệm', description: 'Xem ước lượng Frame–Stewart trong Sandbox.', icon: '🧪', check: (status) => status === 'fs_insight' },
         { id: 'frame_master', title: 'Bậc Thầy 4 Cột', description: 'Sandbox 4 cột (classic) – hoàn thành tối ưu.', icon: '🧩', check: () => MODE === 'sandbox' && sbOpt.rule === 'classic' && document.querySelectorAll('.pole').length === 4 && moves === optimalMovesFor(4, n) },
         { id: 'five_sage', title: 'Ngũ Trụ', description: 'Sandbox 5 cột (classic) – hoàn thành tối ưu.', icon: '🥇', check: () => MODE === 'sandbox' && sbOpt.rule === 'classic' && document.querySelectorAll('.pole').length === 5 && moves === optimalMovesFor(5, n) },
+
+        { id: 'adjacent_master', title: 'Bậc Thầy Liền Kề', description: '🔥 Sandbox: Adjacent rules – 5+ đĩa, không dùng Undo.', icon: '🔗', check: () => MODE === 'sandbox' && sbOpt.rule === 'adjacent' && n >= 5 && undoCount === 0 && !usedAuto },
+        { id: 'cyclic_sage', title: 'Hiền Giả Tuần Hoàn', description: '🔥 Sandbox: Cyclic rules – 5+ đĩa, không dùng Undo.', icon: '🔄', check: () => MODE === 'sandbox' && sbOpt.rule === 'cyclic' && n >= 5 && undoCount === 0 && !usedAuto },
+        { id: 'spread_genius', title: 'Thiên Tài Phân Tán', description: '🔥 Sandbox: Start position Spread – 6+ đĩa hoàn thành.', icon: '🌊', check: () => MODE === 'sandbox' && sbOpt.startPos === 'spread' && n >= 6 && !usedAuto },
+        { id: 'reverse_architect', title: 'Kiến Trúc Đảo Ngược', description: '🔥 Sandbox: Start từ cột cuối – 6+ đĩa hoàn thành.', icon: '↩️', check: () => MODE === 'sandbox' && sbOpt.startPos === 'last_pole' && n >= 6 && !usedAuto },
+        { id: 'minimalist', title: 'Người Tối Giản', description: '🔥 Sandbox: 3 cột, 8 đĩa, adjacent/cyclic – hoàn thành nhanh (<5 phút).', icon: '⚡', check: () => MODE === 'sandbox' && document.querySelectorAll('.pole').length === 3 && n === 8 && (sbOpt.rule === 'adjacent' || sbOpt.rule === 'cyclic') && t0 && (Date.now() - t0) <= 300000 && !usedAuto },
+        { id: 'complexity_master', title: 'Chúa Tể Phức Tạp', description: '🔥 Sandbox: 6 cột, 8 đĩa, adjacent rules – hoàn thành.', icon: '🎭', check: () => MODE === 'sandbox' && document.querySelectorAll('.pole').length === 6 && n === 8 && sbOpt.rule === 'adjacent' && !usedAuto },
+        { id: 'ultimate_combo', title: 'Combo Tối Thượng', description: '🔥 Sandbox: 6 cột, 8 đĩa, cyclic, spread start – hoàn thành.', icon: '💫', check: () => MODE === 'sandbox' && document.querySelectorAll('.pole').length === 6 && n === 8 && sbOpt.rule === 'cyclic' && sbOpt.startPos === 'spread' && !usedAuto },
+        { id: 'creative_soul', title: 'Linh Hồn Sáng Tạo', description: '🔥 Sandbox: Hoàn thành 10 cấu hình khác nhau (tracked).', icon: '🎨', check: (status) => status === 'sandbox_10_configs' },
+        { id: 'efficiency_god', title: 'Thần Hiệu Suất', description: '🔥 Sandbox: Adjacent 5+ đĩa, 4 cột, <300 bước.', icon: '⚙️', check: () => MODE === 'sandbox' && sbOpt.rule === 'adjacent' && n >= 5 && document.querySelectorAll('.pole').length === 4 && moves < 300 && !usedAuto },
+        { id: 'sandbox_speedrun', title: 'Tốc Hành Sandbox', description: '🔥 Sandbox: 7 đĩa, bất kỳ rules, hoàn thành <3 phút.', icon: '🏃', check: () => MODE === 'sandbox' && n === 7 && t0 && (Date.now() - t0) <= 180000 && !usedAuto },
+        { id: 'mad_scientist', title: 'Nhà Khoa Học Điên', description: '🔥 Sandbox: 6 cột, 8 đĩa, last_pole start, any rules.', icon: '🧪', check: () => MODE === 'sandbox' && document.querySelectorAll('.pole').length === 6 && n === 8 && sbOpt.startPos === 'last_pole' && !usedAuto },
+        { id: 'sandbox_legend', title: 'Huyền Thoại Sandbox', description: '👑 Mở khóa 8+ achievements Sandbox đặc biệt.', icon: '🌟', check: () => { const sbAchs = ['adjacent_master','cyclic_sage','spread_genius','reverse_architect','minimalist','complexity_master','ultimate_combo','creative_soul','efficiency_god','sandbox_speedrun','mad_scientist']; return sbAchs.filter(id => unlockAch.includes(id)).length >= 8; } },
 
         { id: 'invincible', title: 'Bất Bại', description: '🔥 Hoàn thành 10+ đĩa tối ưu không dùng Undo (Play/Challenge).', icon: '💪', check: () => n >= 10 && (MODE === 'play' || MODE === 'challenge') && moves === (Math.pow(2, n) - 1) && undoCount === 0 && !usedAuto },
         { id: 'absolute_perfection', title: 'Hoàn Mỹ Tuyệt Đối', description: '🔥 Hoàn thành 12 đĩa tối ưu (Play).', icon: '💎', check: () => n === 12 && MODE === 'play' && moves === (Math.pow(2, n) - 1) && !usedAuto },
@@ -266,9 +308,9 @@
         titleDisplay.textContent = title;
     }
 
-    function getBestKey(diskCount) { return `hanoi_best_v2_${diskCount}_disks`; }
-    function loadBest(diskCount) { try { return JSON.parse(localStorage.getItem(getBestKey(diskCount))) || {}; } catch (e) { return {}; } }
-    function saveBest(diskCount, score) { localStorage.setItem(getBestKey(diskCount), JSON.stringify(score)); }
+    function getBestKey(key) { return typeof key === 'string' && key.startsWith('sb_') ? `hanoi_best_v2_${key}` : `hanoi_best_v2_${key}_disks`; }
+    function loadBest(key) { try { return JSON.parse(localStorage.getItem(getBestKey(key))) || {}; } catch (e) { return {}; } }
+    function saveBest(key, score) { localStorage.setItem(getBestKey(key), JSON.stringify(score)); }
     function updateBestScoreDisplay() {
         n = Math.max(1, Math.min(8, parseInt(nE.value) || 4));
         bestNE.textContent = n;
@@ -476,8 +518,13 @@
             updateUndoButton();
             if (!isSandbox) updateBestScoreDisplay();
 
+            if (isSandbox) {
+                const firstPoleWithDisks = poles.find(p => p.querySelectorAll('.disk').length === n);
+                if (firstPoleWithDisks) sbOpt.startPole = firstPoleWithDisks.id;
+                updateFsInfo();
+            }
+
             updateTopDisks();
-            if (isSandbox) updateFsInfo();
         } catch(e) {
             console.error('buildStage ERROR:', e);
 
@@ -605,23 +652,39 @@
 
     function checkWinCondition() {
         const poles = Array.from(document.querySelectorAll('.pole'));
+        let won = false;
 
-        let targetPole;
-        if (MODE === 'sandbox' && sbOpt.target) {
-            targetPole = document.getElementById(sbOpt.target);
+        if (MODE === 'sandbox') {
+            const startPoleId = sbOpt.startPole || poles[0].id;
+            
+            if (sbOpt.target === 'any_other') {
+                for (let pole of poles) {
+                    if (pole.id !== startPoleId && pole.querySelectorAll('.disk').length === n) {
+                        won = true;
+                        break;
+                    }
+                }
+            } else if (sbOpt.target === 'last_pole') {
+                const lastPole = poles[poles.length - 1];
+                if (lastPole.querySelectorAll('.disk').length === n) {
+                    won = true;
+                }
+            } else {
+                const targetPole = document.getElementById(sbOpt.target);
+                if (targetPole && targetPole.querySelectorAll('.disk').length === n) {
+                    won = true;
+                }
+            }
         } else {
-
-            targetPole = poles[poles.length - 1];
+            const targetPole = poles[poles.length - 1];
+            if (targetPole && targetPole.querySelectorAll('.disk').length === n) {
+                won = true;
+            }
         }
 
-        if (!targetPole) return;
-
-        const disks = targetPole.querySelectorAll('.disk');
-        if (disks.length === n) {
-            if (MODE !== 'sandbox') saveIfBestScore();
-
+        if (won) {
+            saveIfBestScore();
             saveLeaderboardOnWin();
-
             supAch = true;
             checkAllAchievements();
             showFinishPopup();
@@ -687,19 +750,75 @@
             }, 300);
         }
 
-        else if (MODE === 'sandbox' && sbOpt.rule !== 'classic') {
+        else if (MODE === 'sandbox') {
+            const isSandbox = true;
+            const poles = document.querySelectorAll('.pole').length;
+            const isClassic = sbOpt.rule === 'classic';
+            const creativityScore = calculateCreativityScore();
+            
+            saveSandboxConfig({ poleCount: poles, diskCount: n, rule: sbOpt.rule, startPos: sbOpt.startPos, target: sbOpt.target });
+            
             popupToShow = document.getElementById('winSandbox');
             statsEl = document.getElementById('winSandboxStats');
-            statsEl.innerHTML = `${moves} bước | ${tStr}<br><small style="opacity:0.7">${sbOpt.rule} rules</small>`;
+            
+            const ruleNames = { classic: 'Cổ điển', adjacent: 'Liền kề', cyclic: 'Tuần hoàn' };
+            const startNames = { classic: 'Cột 1', spread: 'Phân tán', last_pole: 'Cột cuối' };
+            
+            let badge = '🥉';
+            let badgeText = 'Thí nghiệm thành công';
+            if (creativityScore >= 600) { badge = '💎'; badgeText = 'Thiên tài sáng tạo!'; }
+            else if (creativityScore >= 450) { badge = '🏆'; badgeText = 'Xuất sắc!'; }
+            else if (creativityScore >= 300) { badge = '🥇'; badgeText = 'Rất tốt!'; }
+            else if (creativityScore >= 200) { badge = '🥈'; badgeText = 'Tốt lắm!'; }
+            
+            let optimal = null;
+            if (isClassic && poles === 3) optimal = Math.pow(2, n) - 1;
+            else if (isClassic) optimal = optimalMovesFor(poles, n);
+            
+            let perfText = '';
+            if (optimal && moves === optimal) perfText = '<div style="color:#fbbf24;font-weight:900;margin-top:6px">⚡ TỐI ƯU HOÀN HẢO!</div>';
+            
+            const sbKey = `sb_${poles}p_${n}d_${sbOpt.rule}`;
+            const bestData = loadBest(sbKey);
+            let bestText = '';
+            if (bestData.moves) {
+                const isNewBest = moves < bestData.moves || (moves === bestData.moves && tSeconds < bestData.time);
+                if (isNewBest) {
+                    bestText = '<div style="margin-top:6px;color:#10b981;font-weight:700;font-size:12px">🏆 Kỷ lục mới!</div>';
+                } else {
+                    bestText = `<div style="margin-top:6px;opacity:0.7;font-size:12px">Best: ${bestData.moves} bước | ${formatTime(bestData.time)}</div>`;
+                }
+            }
+            
+            statsEl.innerHTML = `
+                <div style="font-size:36px;margin-bottom:8px">${badge}</div>
+                <div style="font-weight:800;font-size:16px;margin-bottom:6px">${badgeText}</div>
+                <div style="font-size:14px;opacity:0.9;margin:8px 0">
+                    ${moves} bước | ${tStr}
+                </div>
+                <div style="background:rgba(139,92,246,0.12);padding:10px;border-radius:8px;margin-top:10px;text-align:left;font-size:13px">
+                    <div style="margin-bottom:4px"><b>🎯 Cấu hình:</b> ${poles} cột × ${n} đĩa</div>
+                    <div style="margin-bottom:4px"><b>⚙️ Luật:</b> ${ruleNames[sbOpt.rule]}</div>
+                    <div style="margin-bottom:4px"><b>📍 Start:</b> ${startNames[sbOpt.startPos]}</div>
+                    ${bestText}
+                    <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(139,92,246,0.2)">
+                        <b>✨ Creativity Score:</b> <span style="font-size:18px;font-weight:900;color:#8b5cf6">${creativityScore}</span>/999
+                    </div>
+                    <div style="margin-top:4px;font-size:11px;opacity:0.7">
+                        🧪 Đã hoàn thành ${sbConfigsCompleted.length} cấu hình khác nhau
+                    </div>
+                </div>
+                ${perfText}
+            `;
 
             playSound(winSnd, 0.5);
-            const colors = ['#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe'];
+            const colors = creativityScore >= 600 ? ['#fbbf24','#f59e0b','#d97706'] : ['#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe'];
             setTimeout(() => {
                 safeConfetti({ particleCount: 150, angle: 60, spread: 60, origin: { x: 0 }, colors: colors, scalar: 1.2 });
                 safeConfetti({ particleCount: 150, angle: 120, spread: 60, origin: { x: 1 }, colors: colors, scalar: 1.2 });
             }, 100);
             setTimeout(() => {
-                safeConfetti({ particleCount: 100, spread: 100, origin: { y: 0.6 }, colors: colors, scalar: 0.9 });
+                safeConfetti({ particleCount: creativityScore >= 600 ? 200 : 100, spread: 100, origin: { y: 0.6 }, colors: colors, scalar: creativityScore >= 600 ? 1.3 : 0.9 });
             }, 300);
         }
 
@@ -859,18 +978,24 @@
     })();
 
     function saveIfBestScore() {
-
-        if (MODE !== 'play' && MODE !== 'challenge') return;
         if (!t0) return;
-        if (usedAuto) return;
+        if (usedAuto && MODE !== 'sandbox') return;
 
         const t = Math.floor((Date.now() - t0) / 1000);
         if (t < 0 || t > 86400) return;
 
-        const best = loadBest(n);
+        let key;
+        if (MODE === 'sandbox') {
+            const poles = document.querySelectorAll('.pole').length;
+            key = `sb_${poles}p_${n}d_${sbOpt.rule}`;
+        } else {
+            key = `${n}`;
+        }
+
+        const best = loadBest(key);
         if (!best.moves || moves < best.moves || (moves === best.moves && t < best.time)) {
-            saveBest(n, { moves: moves, time: t });
-            updateBestScoreDisplay();
+            saveBest(key, { moves: moves, time: t });
+            if (MODE !== 'sandbox') updateBestScoreDisplay();
         }
     }
 
@@ -1637,6 +1762,7 @@
         if (sandboxRuleDesc && sandboxRuleSelect) sandboxRuleDesc.textContent = sandboxRuleDescs[sandboxRuleSelect.value];
 
         loadAchievements();
+        loadSandboxConfigs();
         updateTitleDisplay();
         loadCustomSounds();
 
